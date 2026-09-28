@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Resume Analyzer</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <main class="page">
+    <header class="page-header">
+      <h1>Resume Analyzer</h1>
+      <p class="subhead">Upload a resume and a job description to see how well they match.</p>
+    </header>
+
+    <form id="analyze-form" class="analyze-form">
+      <label class="field">
+        <span class="field-label">Resume (PDF or DOCX)</span>
+        <input type="file" id="resume-input" name="resume" accept=".pdf,.docx" required>
+      </label>
+
+      <label class="field">
+        <span class="field-label">Job description</span>
+        <textarea id="jd-input" name="job_description" rows="10" placeholder="Paste the job description here..." required></textarea>
+      </label>
+
+      <button type="submit" id="analyze-button">Analyze</button>
+    </form>
+
+    <div id="status" class="status" hidden></div>
+
+    <section id="results" class="results" hidden>
+      <div class="score-block">
+        <div class="score-number" id="score-number">--</div>
+        <div class="score-label">Compatibility score</div>
+        <div id="low-confidence-note" class="low-confidence-note" hidden>
+          Low confidence: little skill information could be detected in this job description.
+        </div>
+      </div>
+
+      <div class="component-grid">
+        <div class="component"><span>Required skills</span><strong id="comp-required">N/A</strong></div>
+        <div class="component"><span>General keywords</span><strong id="comp-general">N/A</strong></div>
+        <div class="component"><span>Experience/projects</span><strong id="comp-experience">N/A</strong></div>
+        <div class="component"><span>Education</span><strong id="comp-education">N/A</strong></div>
+      </div>
+
+      <div class="skills-grid">
+        <div>
+          <h3>Matched required skills</h3>
+          <ul id="matched-required" class="skill-list"></ul>
+        </div>
+        <div>
+          <h3>Missing required skills</h3>
+          <ul id="missing-required" class="skill-list"></ul>
+        </div>
+        <div>
+          <h3>Matched general skills</h3>
+          <ul id="matched-general" class="skill-list"></ul>
+        </div>
+        <div>
+          <h3>Missing general skills</h3>
+          <ul id="missing-general" class="skill-list"></ul>
+        </div>
+      </div>
+
+      <div id="analysis-block" class="analysis-block">
+        <h2>AI analysis</h2>
+        <div id="analysis-error" class="analysis-error" hidden></div>
+        <div id="analysis-content" hidden>
+          <div class="analysis-section">
+            <h3>Strengths</h3>
+            <ul id="strengths-list" class="plain-list"></ul>
+          </div>
+          <div class="analysis-section">
+            <h3>Weaknesses</h3>
+            <ul id="weaknesses-list" class="plain-list"></ul>
+          </div>
+          <div class="analysis-section">
+            <h3>Improvement suggestions</h3>
+            <ul id="suggestions-list" class="plain-list"></ul>
+          </div>
+          <div class="analysis-section">
+            <h3>Summary</h3>
+            <p id="summary-text"></p>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html>

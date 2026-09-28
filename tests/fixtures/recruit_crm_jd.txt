@@ -1,0 +1,31 @@
+Trainee Software Engineer
+
+We are looking for a Trainee Software Engineer to join our engineering team.
+This is a great opportunity for a fresher or recent graduate with a strong
+foundation in computer science to grow into a full-time software development
+role.
+
+Responsibilities:
+You will work on building features from scratch, maintaining existing
+modules, and writing scalable, reusable, and reliable software. Strong
+problem solving and analytical thinking skills are expected, along with
+clear communication with the rest of the engineering team.
+
+Required Skills:
+- Proficiency in Java and Python
+- Familiarity with AI/ML concepts
+- Strong understanding of Data Structures and Algorithms (DSA)
+- Good grasp of Object-Oriented Programming (OOP) concepts
+- Experience with SQL and relational databases
+
+Nice to have:
+- Exposure to Git and GitHub
+- Familiarity with REST APIs
+- Interest in Machine Learning and Generative AI
+
+Education:
+Bachelor's degree in Computer Science Engineering (B.Tech) or a related
+field.
+
+Experience:
+0-1 years of experience. Freshers are encouraged to apply.
