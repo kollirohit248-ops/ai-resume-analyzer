@@ -1,10 +1,10 @@
 """
-LLM integration service (Google Gemini, free tier).
+LLM integration service (Groq, free tier).
 
-Calls the Gemini REST API directly via `requests` to produce QUALITATIVE
+Calls the Groq (OpenAI-compatible) REST API directly via `requests` to produce QUALITATIVE
 commentary on a resume/JD pair. It has NO influence over the numeric ATS
 score. The key is read from LLM_API_KEY (same variable name as before), and
-the model from GEMINI_MODEL (default: gemini-2.5-flash).
+the model from GROQ_MODEL (default: llama-3.3-70b-versatile).
 
 The HTTP call is injectable via `http_post` so tests never hit the network.
 """
@@ -27,8 +27,8 @@ from exceptions import (
 )
 from services.scoring import ATSScoreResult
 
-GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
-GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
+GROQ_MODEL = os.environ.get("GROQ_MODEL", "llama-3.3-70b-versatile")
+GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions"
 
 # Cap on each of resume/JD text placed in the prompt.
 _MAX_PROMPT_TEXT_CHARS = 20000
@@ -96,46 +96,43 @@ before or after) with exactly these keys:
 }}"""
 
 
-def _google_error_message(response) -> str:
-    """Pull the human-readable message out of a Google API error response."""
+def _api_error_message(response) -> str:
+    """Pull the human-readable message out of an API error response."""
     try:
         return str(response.json()["error"]["message"])[:300]
     except Exception:  # noqa: BLE001
         return (response.text or "")[:300]
 
 
-def _call_gemini_api(prompt: str, http_post: Callable = requests.post) -> str:
+def _call_groq_api(prompt: str, http_post: Callable = requests.post) -> str:
     """Make the HTTP call and return the model's raw text reply (specific LLMError on failure)."""
     if not config.LLM_API_KEY:
         raise MissingAPIKeyError("No LLM API key is configured. Set LLM_API_KEY in your environment.")
 
-    url = GEMINI_API_URL.format(model=GEMINI_MODEL)
     api_key = config.LLM_API_KEY.strip().strip('"').strip("'")
-    headers = {"x-goog-api-key": api_key, "content-type": "application/json"}
+    headers = {"Authorization": f"Bearer {api_key}", "content-type": "application/json"}
     body = {
-        "contents": [{"parts": [{"text": prompt}]}],
-        "generationConfig": {
-            "responseMimeType": "application/json",
-            # Generous: some Gemini models spend part of this budget on internal reasoning.
-            "maxOutputTokens": 8192,
-        },
+        "model": GROQ_MODEL,
+        "messages": [{"role": "user", "content": prompt}],
+        "max_tokens": 2048,
+        "temperature": 0.3,
+        "response_format": {"type": "json_object"},
     }
 
     try:
-        response = http_post(url, headers=headers, json=body, timeout=config.LLM_TIMEOUT_SECONDS)
+        response = http_post(GROQ_API_URL, headers=headers, json=body, timeout=config.LLM_TIMEOUT_SECONDS)
     except requests.exceptions.Timeout as exc:
         raise LLMTimeoutError(f"LLM API call timed out after {config.LLM_TIMEOUT_SECONDS} seconds.") from exc
     except requests.exceptions.RequestException as exc:
         raise LLMRequestError(f"LLM API request failed: {exc}") from exc
 
     if response.status_code >= 400:
-        detail = _google_error_message(response)
-        low = detail.lower()
+        detail = _api_error_message(response)
+        if response.status_code == 401:
+            raise InvalidAPIKeyError(f"Groq rejected the API key: {detail}")
         if response.status_code == 429:
             raise LLMRateLimitError(f"Free-tier rate limit reached (429). Wait a minute and retry. {detail}")
-        if "api key" in low or "api_key" in low:
-            raise InvalidAPIKeyError(f"Google rejected the API key: {detail}")
-        raise LLMRequestError(f"Gemini API error {response.status_code} (model {GEMINI_MODEL}): {detail}")
+        raise LLMRequestError(f"Groq API error {response.status_code} (model {GROQ_MODEL}): {detail}")
 
     try:
         data = response.json()
@@ -143,18 +140,18 @@ def _call_gemini_api(prompt: str, http_post: Callable = requests.post) -> str:
         raise MalformedLLMResponseError("LLM API response was not valid JSON.") from exc
 
     try:
-        parts = data["candidates"][0]["content"]["parts"]
-        text = "".join(p.get("text", "") for p in parts)
+        text = data["choices"][0]["message"]["content"] or ""
     except (KeyError, IndexError, TypeError) as exc:
-        raise MalformedLLMResponseError("LLM API response had no usable answer (it may have been blocked).") from exc
+        raise MalformedLLMResponseError("LLM API response had no usable answer.") from exc
 
     if not text.strip():
         raise MalformedLLMResponseError("LLM API returned an empty response.")
     return text
 
 
-# Backwards-compatible alias for older imports/tests.
-_call_anthropic_api = _call_gemini_api
+# Backwards-compatible aliases for older imports/tests.
+_call_anthropic_api = _call_groq_api
+_call_gemini_api = _call_groq_api
 
 
 def _parse_llm_response(text: str) -> LLMAnalysis:
@@ -223,5 +220,5 @@ def generate_resume_analysis(
     is unavailable) rather than crash.
     """
     prompt = _build_prompt(resume_text, job_text, ats_result)
-    raw_text = _call_gemini_api(prompt, http_post=http_post)
+    raw_text = _call_groq_api(prompt, http_post=http_post)
     return _parse_llm_response(raw_text)
