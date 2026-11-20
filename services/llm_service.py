@@ -96,13 +96,22 @@ before or after) with exactly these keys:
 }}"""
 
 
+def _google_error_message(response) -> str:
+    """Pull the human-readable message out of a Google API error response."""
+    try:
+        return str(response.json()["error"]["message"])[:300]
+    except Exception:  # noqa: BLE001
+        return (response.text or "")[:300]
+
+
 def _call_gemini_api(prompt: str, http_post: Callable = requests.post) -> str:
     """Make the HTTP call and return the model's raw text reply (specific LLMError on failure)."""
     if not config.LLM_API_KEY:
         raise MissingAPIKeyError("No LLM API key is configured. Set LLM_API_KEY in your environment.")
 
     url = GEMINI_API_URL.format(model=GEMINI_MODEL)
-    headers = {"x-goog-api-key": config.LLM_API_KEY, "content-type": "application/json"}
+    api_key = config.LLM_API_KEY.strip().strip('"').strip("'")
+    headers = {"x-goog-api-key": api_key, "content-type": "application/json"}
     body = {
         "contents": [{"parts": [{"text": prompt}]}],
         "generationConfig": {
@@ -119,14 +128,14 @@ def _call_gemini_api(prompt: str, http_post: Callable = requests.post) -> str:
     except requests.exceptions.RequestException as exc:
         raise LLMRequestError(f"LLM API request failed: {exc}") from exc
 
-    if response.status_code in (401, 403) or (
-        response.status_code == 400 and "api key" in response.text.lower()
-    ):
-        raise InvalidAPIKeyError("LLM API rejected the configured API key. Check LLM_API_KEY.")
-    if response.status_code == 429:
-        raise LLMRateLimitError("LLM API free-tier rate limit reached (429). Wait a minute and try again.")
     if response.status_code >= 400:
-        raise LLMRequestError(f"LLM API returned an error status {response.status_code}: {response.text[:300]}")
+        detail = _google_error_message(response)
+        low = detail.lower()
+        if response.status_code == 429:
+            raise LLMRateLimitError(f"Free-tier rate limit reached (429). Wait a minute and retry. {detail}")
+        if "api key" in low or "api_key" in low:
+            raise InvalidAPIKeyError(f"Google rejected the API key: {detail}")
+        raise LLMRequestError(f"Gemini API error {response.status_code} (model {GEMINI_MODEL}): {detail}")
 
     try:
         data = response.json()
