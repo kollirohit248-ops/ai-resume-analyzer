@@ -99,7 +99,10 @@ REQUIRED_CONTEXT_PHRASES: Tuple[str, ...] = (
 # JD doesn't sweep in unrelated skills mentioned paragraphs later.
 _REQUIRED_CONTEXT_WINDOW_CHARS = 200
 
-_SENTENCE_END_RE = re.compile(r"[.!?]")
+# A sentence end is punctuation followed by whitespace or end-of-text. A bare
+# "." inside "Node.js" / "ASP.NET" / "React.js" must NOT end the window, or
+# every skill after it in a "Required skills: ..." list is silently lost.
+_SENTENCE_END_RE = re.compile(r"[.!?](?=\s|$)")
 
 # Phrases that signal a shift AWAY from hard requirements. Preprocessing
 # collapses newlines/section breaks (see text_preprocessing.clean_whitespace),
@@ -178,7 +181,10 @@ _EDUCATION_PATTERNS: Tuple[Pattern, ...] = tuple(
     re.compile(p) for p in (
         r"\bb\.?\s?tech\b",
         r"\bm\.?\s?tech\b",
-        r"\bb\.?\s?e\b",
+        # Dotted form only ("B.E", "B. E"). The dotless form "be" is an
+        # ordinary English word and matched nearly every job description.
+        r"\bb\.\s?e\b",
+        r"\bbe\s+degree\b",
         r"\bb\.?\s?sc\b",
         r"\bm\.?\s?sc\b",
         r"\bbca\b",
@@ -329,6 +335,9 @@ def analyze_job_description(raw_text: str) -> JobDescriptionAnalysis:
     detected = find_skills(preprocessed.tokens, preprocessed.normalized_text)
 
     required_names = detect_required_skill_names(preprocessed.normalized_text)
+    if not required_names:
+        # No cue phrases found: treat every detected skill as required.
+        required_names = {s.canonical_name for s in detected}
     required = [s for s in detected if s.canonical_name in required_names]
     general = [s for s in detected if s.canonical_name not in required_names]
 
